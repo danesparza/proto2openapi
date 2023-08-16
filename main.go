@@ -13,7 +13,7 @@ import (
 func main() {
 
 	//	Set log info:
-	log.Logger = log.With().Caller().Logger()
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
 
 	//	Set log level (default to info)
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)

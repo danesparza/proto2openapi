@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/emicklei/proto v1.12.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect

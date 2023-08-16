@@ -1,40 +1,62 @@
-/*
-Copyright © 2023 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
 import (
-	"fmt"
+	"github.com/emicklei/proto"
+	"github.com/rs/zerolog/log"
+	"os"
 
 	"github.com/spf13/cobra"
 )
 
+var ProtoPath string
+
 // generateCmd represents the generate command
 var generateCmd = &cobra.Command{
 	Use:   "generate",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("generate called")
-	},
+	Short: "Generate OpenAPI documentation file from the protobuf file",
+	Long:  `Generate OpenAPI documentation file from the protobuf file`,
+	Run:   generate,
 }
 
 func init() {
 	rootCmd.AddCommand(generateCmd)
 
-	// Here you will define your flags and configuration settings.
+	generateCmd.Flags().StringVarP(&ProtoPath, "proto", "p", "", "Source protobuf file to read from")
+}
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// generateCmd.PersistentFlags().String("foo", "", "A help for foo")
+func generate(cmd *cobra.Command, args []string) {
+	log.Trace().Msg("Generate called")
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// generateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	reader, err := os.Open(ProtoPath)
+	defer reader.Close()
+
+	if err != nil {
+		log.Err(err).Str("proto", ProtoPath).Msg("Problem opening the proto file")
+		return
+	}
+
+	// Parse
+	parser := proto.NewParser(reader)
+	definition, err := parser.Parse()
+	if err != nil {
+		log.Err(err).Str("proto", ProtoPath).Msg("Problem parsing the proto file")
+		return
+	}
+
+	//	Get package information
+	var pkg *proto.Package
+	for _, elem := range definition.Elements {
+
+		//	Get message information
+		pkgInfo, ok := elem.(*proto.Package)
+		if !ok {
+			continue
+		}
+
+		pkg = pkgInfo
+	}
+
+	packageName := pkg.Name
+	log.Info().Str("proto", ProtoPath).Str("package", packageName).Msg("Parsed proto file")
+
 }
