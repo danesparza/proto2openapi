@@ -9,6 +9,7 @@ import (
 )
 
 var ProtoPath string
+var OutputPath string
 
 // generateCmd represents the generate command
 var generateCmd = &cobra.Command{
@@ -22,6 +23,7 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 
 	generateCmd.Flags().StringVarP(&ProtoPath, "proto", "p", "", "Source protobuf file to read from")
+	generateCmd.Flags().StringVarP(&OutputPath, "out", "o", "./apischema.yaml", "OpenAPI schema file to write to")
 }
 
 func generate(cmd *cobra.Command, args []string) {
