@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/emicklei/proto"
+	"github.com/danesparza/proto2openapi/internal/converter"
 	"github.com/rs/zerolog/log"
 	"os"
 
@@ -27,38 +27,32 @@ func init() {
 }
 
 func generate(cmd *cobra.Command, args []string) {
-	log.Trace().Msg("Generate called")
 
+	//	Open the proto path
 	reader, err := os.Open(ProtoPath)
 	defer reader.Close()
-
 	if err != nil {
 		log.Err(err).Str("proto", ProtoPath).Msg("Problem opening the proto file")
 		return
 	}
 
-	// Parse
-	parser := proto.NewParser(reader)
-	definition, err := parser.Parse()
+	//	Create a new Converter type:
+	c := converter.Converter{
+		Source: reader,
+	}
+
+	//	Generate YAML docs
+	retval, err := c.ConvertToYAML()
 	if err != nil {
-		log.Err(err).Str("proto", ProtoPath).Msg("Problem parsing the proto file")
-		return
+		log.Err(err).Str("proto", ProtoPath).Msg("Problem generating docs")
 	}
 
-	//	Get package information
-	var pkg *proto.Package
-	for _, elem := range definition.Elements {
-
-		//	Get message information
-		pkgInfo, ok := elem.(*proto.Package)
-		if !ok {
-			continue
-		}
-
-		pkg = pkgInfo
+	//	Spit out the docs:
+	err = os.WriteFile(OutputPath, []byte(retval), 0666)
+	if err != nil {
+		log.Err(err).Str("proto", ProtoPath).Str("outfile", OutputPath).Msg("Problem writing to output file")
+	} else {
+		log.Info().Str("proto", ProtoPath).Str("outfile", OutputPath).Msg("Finished generating docs to output file")
 	}
-
-	packageName := pkg.Name
-	log.Info().Str("proto", ProtoPath).Str("package", packageName).Msg("Parsed proto file")
 
 }
