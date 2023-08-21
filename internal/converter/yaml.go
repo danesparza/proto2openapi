@@ -77,114 +77,16 @@ func (c *Converter) GetYAMLTypeFromMessage(message *proto.Message) string {
 	// Write out each of the fields
 	for _, node := range message.Elements {
 
-		//	Get field information
-		field, ok := node.(*proto.NormalField)
-		if !ok {
-			continue
+		//	If it's a normal field, get the YAML for that
+		normalField, normalOK := node.(*proto.NormalField)
+		if normalOK {
+			retval += c.GetYAMLNormalField(normalField)
 		}
 
-		//	Format and emit the name
-		name := underscoreToCamel(field.Name)
-		retval += fmt.Sprintf("        %s:\n", name)
-
-		//	Map the proto type to the OpenAPI type
-		//	Protobuf type reference: https://protobuf.dev/programming-guides/proto3/#scalar
-		//	OpenAPI type reference: https://swagger.io/docs/specification/data-models/data-types/
-		var t string
-		var tf string
-		customType := false
-		switch field.Type {
-		case "double":
-			t = "number"
-			tf = "double"
-		case "float":
-			t = "number"
-			tf = "float"
-		case "int32":
-			t = "integer"
-			tf = "int32"
-		case "int64":
-			t = "integer"
-			tf = "int64"
-		case "uint32":
-			t = "number"
-		case "uint64":
-			t = "number"
-		case "sint32":
-			t = "integer"
-			tf = "int32"
-		case "sint64":
-			t = "integer"
-			tf = "int64"
-		case "fixed32":
-			t = "number"
-		case "fixed64":
-			t = "number"
-		case "sfixed32":
-			t = "integer"
-			tf = "int32"
-		case "sfixed64":
-			t = "integer"
-			tf = "int64"
-		case "bool":
-			t = "boolean"
-		case "string":
-			t = "string"
-		case "bytes":
-			/* Not sure the best way to represent this in OpenAPI types */
-			t = "string"
-		default:
-			customType = true
-			t = fmt.Sprintf("%s.%s", c.PackageName, field.Type)
-		}
-
-		//	FORMAT THE FIELD INFORMATION
-
-		//	It's not an array
-		if !field.Repeated {
-
-			//	If it's a custom type, use ref formatting
-			if customType {
-				retval += fmt.Sprintf("          $ref: '#/components/schemas/%s'\n", t)
-			}
-
-			//	If it's not a custom type, use regular formatting
-			if !customType {
-				retval += fmt.Sprintf("          type: %s\n", t)
-
-				//	If we have a type format, show it
-				if tf != "" {
-					retval += fmt.Sprintf("          format: %s\n", tf)
-				}
-			}
-
-		}
-
-		//	It is an array
-		if field.Repeated {
-			//	If it's a custom type, use ref formatting
-			if customType {
-				retval += fmt.Sprintf("          type: array\n          items:\n            $ref: '#/components/schemas/%s'\n", t)
-			}
-
-			//	If it's not a custom type, use regular formatting
-			if !customType {
-				retval += fmt.Sprintf("          type: array\n          items:\n            type: %s\n", t)
-
-				//	If we have a type format, show it
-				if tf != "" {
-					retval += fmt.Sprintf("            format: %s\n", tf)
-				}
-			}
-		}
-
-		//	Get field-level comment information
-		if field.Comment != nil {
-			retval += fmt.Sprintf("          description: %s", c.GetYAMLComment(field.Comment, 12))
-		}
-
-		if field.InlineComment != nil {
-			retval += fmt.Sprintf("          description: %s", c.GetYAMLComment(field.InlineComment, 12))
+		//	If it's a map field, get the YAML for that
+		mapfield, mapOK := node.(*proto.MapField)
+		if mapOK {
+			retval += c.GetYAMLMapField(mapfield)
 		}
 
 	}
@@ -218,6 +120,105 @@ func (c *Converter) GetYAMLComment(comment *proto.Comment, indentLvl int) string
 	} else {
 		//	A single line comment
 		retval = fmt.Sprintf("%s\n", strings.TrimSpace(comment.Message()))
+	}
+
+	return retval
+}
+
+// GetYAMLNormalField returns a YAML formatted field for a given 'normal' field
+func (c Converter) GetYAMLNormalField(field *proto.NormalField) string {
+	retval := ""
+
+	//	Format and emit the name
+	name := underscoreToCamel(field.Name)
+	retval += fmt.Sprintf("        %s:\n", name)
+
+	//	Get the field type:
+	t, tf, customType := protoTypeToOpenAPIType(c.PackageName, field.Type)
+
+	//	It's not an array
+	if !field.Repeated {
+
+		//	If it's a custom type, use ref formatting
+		if customType {
+			retval += fmt.Sprintf("          $ref: '#/components/schemas/%s'\n", t)
+		}
+
+		//	If it's not a custom type, use regular formatting
+		if !customType {
+			retval += fmt.Sprintf("          type: %s\n", t)
+
+			//	If we have a type format, show it
+			if tf != "" {
+				retval += fmt.Sprintf("          format: %s\n", tf)
+			}
+		}
+
+	}
+
+	//	It is an array
+	if field.Repeated {
+		//	If it's a custom type, use ref formatting
+		if customType {
+			retval += fmt.Sprintf("          type: array\n          items:\n            $ref: '#/components/schemas/%s'\n", t)
+		}
+
+		//	If it's not a custom type, use regular formatting
+		if !customType {
+			retval += fmt.Sprintf("          type: array\n          items:\n            type: %s\n", t)
+
+			//	If we have a type format, show it
+			if tf != "" {
+				retval += fmt.Sprintf("            format: %s\n", tf)
+			}
+		}
+	}
+
+	//	Get field-level comment information
+	if field.Comment != nil {
+		retval += fmt.Sprintf("          description: %s", c.GetYAMLComment(field.Comment, 12))
+	}
+
+	if field.InlineComment != nil {
+		retval += fmt.Sprintf("          description: %s", c.GetYAMLComment(field.InlineComment, 12))
+	}
+
+	return retval
+}
+
+// GetYAMLMapField returns a YAML formatted field for a given 'normal' field
+func (c Converter) GetYAMLMapField(field *proto.MapField) string {
+	retval := ""
+
+	//	Format and emit the name
+	name := underscoreToCamel(field.Name)
+	retval += fmt.Sprintf("        %s:\n", name)
+
+	//	Get the field type:
+	t, tf, customType := protoTypeToOpenAPIType(c.PackageName, field.Type)
+
+	//	If it's a custom type, use ref formatting
+	if customType {
+		retval += fmt.Sprintf("          $ref: '#/components/schemas/%s'\n", t)
+	}
+
+	//	If it's not a custom type, use regular formatting
+	if !customType {
+		retval += fmt.Sprintf("          type: %s\n", t)
+
+		//	If we have a type format, show it
+		if tf != "" {
+			retval += fmt.Sprintf("          format: %s\n", tf)
+		}
+	}
+
+	//	Get field-level comment information
+	if field.Comment != nil {
+		retval += fmt.Sprintf("          description: %s", c.GetYAMLComment(field.Comment, 12))
+	}
+
+	if field.InlineComment != nil {
+		retval += fmt.Sprintf("          description: %s", c.GetYAMLComment(field.InlineComment, 12))
 	}
 
 	return retval
